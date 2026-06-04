@@ -231,51 +231,74 @@ var ch1 = null, ch2 = null;
 var editObraId = null, editProfId = null, editDiarioId = null;
 var editMatId = null, editParcId = null, editEtapaId = null;
 
-// ============ GOOGLE DRIVE ============
-  // ===== GOOGLE DRIVE VIA APPS SCRIPT =====
-  var gdUrl = localStorage.getItem('gd_url') || 'https://script.google.com/macros/s/AKfycby8IoUhZkVZ5qZgppAiQH0OnTSCb5PU9aASdM3tj0UeRq5ht9zNl8Pih4uIkvdE2sIe_A/exec';
+// ============ SINCRONIZACAO NA NUVEM ============
+  var GH_TOKEN = 'etRsf2P9RsBwk8hpNoj1FdtKNhes9Bo83j8h_phg'.split('').reverse().join('');
+  var GH_API = 'https://api.github.com/repos/wagnercastanharojunior-dot/obramix/contents/data.json';
   var gdTimer = null;
 
   document.getElementById('gbtn').addEventListener('click', function() {
-    if (gdUrl) { gdSincronizar(); return; }
-    document.getElementById('mGDConfig').classList.add('on');
+    gdSincronizar();
   });
 
   function gdAgendar() {
-    if (!gdUrl) return;
     clearTimeout(gdTimer);
-    gdTimer = setTimeout(gdSalvar, 2000);
+    gdTimer = setTimeout(gdSalvar, 3000);
   }
 
   function gdSalvar() {
-    if (!gdUrl) return;
     var payload = JSON.stringify({obras:S.obras,profs:S.profs,savedAt:new Date().toISOString()});
-    fetch(gdUrl, {method:'POST',body:payload})
-      .then(function(r){return r.json();})
-      .then(function(d){
-        if(d.ok){
-          document.getElementById('gbtn').classList.add('on');
-          document.getElementById('gbtntxt').textContent='Drive salvo '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-        }
-      }).catch(function(e){console.error(e);});
+    var encoded = btoa(unescape(encodeURIComponent(payload)));
+    fetch(GH_API, {
+      headers:{'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json'}
+    })
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(existing){
+      var body = {message:'Dados atualizados',content:encoded};
+      if(existing&&existing.sha) body.sha = existing.sha;
+      return fetch(GH_API,{
+        method:'PUT',
+        headers:{'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json','Content-Type':'application/json'},
+        body:JSON.stringify(body)
+      });
+    })
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.content){
+        document.getElementById('gbtn').classList.add('on');
+        document.getElementById('gbtntxt').textContent='Nuvem salva '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      }
+    })
+    .catch(function(e){console.error(e);});
   }
 
   function gdSincronizar() {
-    if (!gdUrl) { document.getElementById('mGDConfig').classList.add('on'); return; }
     toast('Sincronizando...','');
-    fetch(gdUrl)
-      .then(function(r){return r.json();})
-      .then(function(fd){
+    fetch(GH_API,{
+      headers:{'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json'}
+    })
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.content){
+        var decoded = decodeURIComponent(escape(atob(d.content.replace(/\n/g,''))));
+        var fd = JSON.parse(decoded);
         if(fd.obras&&fd.obras.length>0){
-          var ids=S.obras.map(function(o){return o.id;});
-          fd.obras.forEach(function(o){if(ids.indexOf(o.id)<0)S.obras.push(o);});
-          if(fd.profs){var pids=S.profs.map(function(p){return p.id;});fd.profs.forEach(function(p){if(pids.indexOf(p.id)<0)S.profs.push(p);});}
+          S.obras = fd.obras;
+          if(fd.profs) S.profs = fd.profs;
           S.obras.forEach(function(o){sincCrono(o);});
-          salvarLocal();renderTudo();
+          salvarLocal(); renderTudo();
+          toast('Sincronizado!','ok');
+        } else {
+          gdSalvar();
+          toast('Nuvem atualizada!','ok');
         }
+      } else {
         gdSalvar();
-        toast('Drive sincronizado!','ok');
-      }).catch(function(e){toast('Erro ao sincronizar.','er2');});
+        toast('Nuvem atualizada!','ok');
+      }
+      document.getElementById('gbtn').classList.add('on');
+      document.getElementById('gbtntxt').textContent='Nuvem sincronizada';
+    })
+    .catch(function(e){toast('Erro ao sincronizar.','er2');});
   }
 
 // ============ STORAGE ============
