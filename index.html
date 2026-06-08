@@ -232,8 +232,7 @@ var editObraId = null, editProfId = null, editDiarioId = null;
 var editMatId = null, editParcId = null, editEtapaId = null;
 
 // ============ SINCRONIZACAO NA NUVEM ============
-  var GH_TOKEN = 'etRsf2P9RsBwk8hpNoj1FdtKNhes9Bo83j8h_phg'.split('').reverse().join('');
-  var GH_API = 'https://api.github.com/repos/wagnercastanharojunior-dot/obramix/contents/data.json';
+  var AS_URL = 'https://script.google.com/macros/s/AKfycbzIUyxVR63JC6ZLATa5DYnDKXTpdy4ZNIYS1zd_119PysW1rnAOhb2e6tjdlXqklD69-A/exec';
   var gdTimer = null;
 
   document.getElementById('gbtn').addEventListener('click', function() {
@@ -242,28 +241,18 @@ var editMatId = null, editParcId = null, editEtapaId = null;
 
   function gdAgendar() {
     clearTimeout(gdTimer);
-    gdTimer = setTimeout(gdSalvar, 3000);
+    gdTimer = setTimeout(gdSalvar, 2000);
   }
 
   function gdSalvar() {
-    var payload = JSON.stringify({obras:S.obras,profs:S.profs,savedAt:new Date().toISOString()});
-    var encoded = btoa(unescape(encodeURIComponent(payload)));
-    fetch(GH_API, {
-      headers:{'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json'}
-    })
-    .then(function(r){return r.ok?r.json():null;})
-    .then(function(existing){
-      var body = {message:'Dados atualizados',content:encoded};
-      if(existing&&existing.sha) body.sha = existing.sha;
-      return fetch(GH_API,{
-        method:'PUT',
-        headers:{'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json','Content-Type':'application/json'},
-        body:JSON.stringify(body)
-      });
+    fetch(AS_URL, {
+      method: 'POST',
+      body: JSON.stringify({obras:S.obras, profs:S.profs, savedAt:new Date().toISOString()}),
+      headers: {'Content-Type': 'text/plain'}
     })
     .then(function(r){return r.json();})
     .then(function(d){
-      if(d.content){
+      if(d.ok){
         document.getElementById('gbtn').classList.add('on');
         document.getElementById('gbtntxt').textContent='Nuvem salva '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
       }
@@ -273,14 +262,10 @@ var editMatId = null, editParcId = null, editEtapaId = null;
 
   function gdSincronizar() {
     toast('Sincronizando...','');
-    fetch(GH_API,{
-      headers:{'Authorization':'Bearer '+GH_TOKEN,'Accept':'application/vnd.github+json'}
-    })
+    fetch(AS_URL + '?action=load')
     .then(function(r){return r.json();})
-    .then(function(d){
-      if(d.content){
-        var decoded = decodeURIComponent(escape(atob(d.content.replace(/\n/g,''))));
-        var fd = JSON.parse(decoded);
+    .then(function(fd){
+      if(fd){
         if(fd.obras&&fd.obras.length>0){
           S.obras = fd.obras;
           if(fd.profs) S.profs = fd.profs;
